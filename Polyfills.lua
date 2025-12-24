@@ -95,6 +95,15 @@ Cell.supporters2 = Cell.supporters2 or {}
 -------------------------------------------------
 
 -------------------------------------------------
+-- World Markers (Raid Markers on ground) - Added in Cataclysm
+-- NOTE: Sirus server has these functions, so we only add stubs
+-- if they truly don't exist (vanilla servers without this feature)
+-- The "if not" check ensures we don't override Sirus implementations
+-------------------------------------------------
+-- Removed polyfills - Sirus has native world marker support via /wm command
+-- IsRaidMarkerActive, ClearRaidMarker, SetRaidMarker are provided by Sirus
+
+-------------------------------------------------
 -- Screen size polyfill for WotLK
 -------------------------------------------------
 if not GetPhysicalScreenSize then
@@ -785,8 +794,10 @@ end
 
 -------------------------------------------------
 -- SecureHandler_SetFrameRef polyfill
+-- DISABLED for WotLK - this was causing taint and breaking World Markers
 -- Ignore invalid/nil reference frames instead of erroring.
 -------------------------------------------------
+--[[ DISABLED - causes taint on WotLK/Sirus
 do
 	if type(SecureHandler_SetFrameRef) == "function" and not _G._CellOrigSecureHandlerSetFrameRef then
 		_G._CellOrigSecureHandlerSetFrameRef = SecureHandler_SetFrameRef
@@ -802,6 +813,7 @@ do
 		end
 	end
 end
+--]]
 
 -- Cooldown swipe API polyfill for 3.3.5a (no-op)
 do

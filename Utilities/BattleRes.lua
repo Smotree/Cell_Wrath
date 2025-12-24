@@ -267,6 +267,7 @@ battleResMover.text:SetWordWrap(false)
 battleResMover.text:SetText(L["Mover"])
 
 local function MoverShow()
+	battleResMover.text:SetText(L["Mover"])
 	battleResMover:Show()
 	if not battleResFrame:IsShown() then
 		battleResFrame:SetScript("OnUpdate", nil)

@@ -39,6 +39,7 @@ local function ShowMover(show)
 			return
 		end
 		marksFrame:EnableMouse(true)
+		marksFrame.moverText:SetText(L["Mover"])
 		marksFrame.moverText:Show()
 		Cell.StylizeFrame(marksFrame, { 0, 1, 0, 0.4 }, { 0, 0, 0, 0 })
 		if not F.HasPermission(true) then -- button not shown
@@ -209,7 +210,15 @@ worldMarks = Cell.CreateFrame("CellRaidMarksFrame_WorldMarks", marksFrame, 196, 
 worldMarks:SetPoint("BOTTOMLEFT")
 worldMarks:Hide()
 
-local worldMarkIndices = { 5, 6, 3, 2, 7, 1, 4, 8 }
+-- Retail API uses different indices than Sirus /wm command
+-- Sirus /wm: 1=white, 2=red, 3=blue, 4=silver, 5=green, 6=purple, 7=orange, 8=yellow
+local worldMarkIndices = { 5, 6, 3, 2, 7, 1, 4, 8 } -- Retail API indices
+-- Map Cell button index to Sirus /wm command index
+-- Cell buttons: 1=yellow, 2=orange, 3=purple, 4=green, 5=gray, 6=blue, 7=red, 8=white
+local sirusWorldMarkIndices = { 8, 7, 6, 5, 4, 3, 2, 1 }
+-- Map Cell button index to Sirus IsRaidMarkerActive index (0-7)
+-- Determined by testing: wm8->7, wm7->2, wm6->3, wm5->1, wm4->5, wm3->0, wm2->4, wm1->6
+local sirusIsRaidMarkerActiveIndices = { 7, 2, 3, 1, 5, 0, 4, 6 }
 local worldMarkButtons = {}
 for i = 1, 9 do
 	worldMarkButtons[i] = Cell.CreateButton(
@@ -231,16 +240,29 @@ for i = 1, 9 do
 		P.Point(worldMarkButtons[i].texture, "TOPLEFT", worldMarkButtons[i], "TOPLEFT", 2, -2)
 		P.Point(worldMarkButtons[i].texture, "BOTTOMRIGHT", worldMarkButtons[i], "BOTTOMRIGHT", -2, 2)
 		worldMarkButtons[i].texture:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-		worldMarkButtons[i]:SetAttribute("type", "worldmarker")
-		worldMarkButtons[i]:SetAttribute("action", "clear")
+		if Cell.isWrath or Cell.isVanilla then
+			-- Sirus/WotLK: /wm 0 doesn't work, clear each marker individually
+			worldMarkButtons[i]:SetAttribute("type", "macro")
+			worldMarkButtons[i]:SetAttribute(
+				"macrotext",
+				"/cwm 1\n/cwm 2\n/cwm 3\n/cwm 4\n/cwm 5\n/cwm 6\n/cwm 7\n/cwm 8"
+			)
+		else
+			worldMarkButtons[i]:SetAttribute("type", "worldmarker")
+			worldMarkButtons[i]:SetAttribute("action", "clear")
+		end
 	else
 		P.Point(worldMarkButtons[i].texture, "TOPLEFT", worldMarkButtons[i], "TOPLEFT", 1, -1)
 		P.Point(worldMarkButtons[i].texture, "BOTTOMRIGHT", worldMarkButtons[i], "BOTTOMRIGHT", -1, 1)
 		worldMarkButtons[i].texture:SetColorTexture(markColors[i][1], markColors[i][2], markColors[i][3], 0.4)
-		worldMarkButtons[i]:SetAttribute("type", "worldmarker")
-		worldMarkButtons[i]:SetAttribute("marker", worldMarkIndices[i])
-		-- worldMarkButtons[i]:SetAttribute("type", "macro")
-		-- worldMarkButtons[i]:SetAttribute("macrotext", "/wm "..worldMarkIndices[i])
+		if Cell.isWrath or Cell.isVanilla then
+			-- Sirus/WotLK: use /wm macro command with Sirus-specific indices
+			worldMarkButtons[i]:SetAttribute("type", "macro")
+			worldMarkButtons[i]:SetAttribute("macrotext", "/wm " .. sirusWorldMarkIndices[i])
+		else
+			worldMarkButtons[i]:SetAttribute("type", "worldmarker")
+			worldMarkButtons[i]:SetAttribute("marker", worldMarkIndices[i])
+		end
 	end
 
 	worldMarkButtons[i].bg:SetColorTexture(0.1, 0.1, 0.1, 0.7)
@@ -259,7 +281,11 @@ local worldMarksTimer
 worldMarks:SetScript("OnShow", function()
 	worldMarksTimer = C_Timer.NewTicker(0.5, function()
 		for i = 1, 8 do
-			if IsRaidMarkerActive(worldMarkIndices[i]) then
+			-- Use correct indices based on game version
+			-- Sirus IsRaidMarkerActive uses indices 0-7
+			local markerIndex = (Cell.isWrath or Cell.isVanilla) and sirusIsRaidMarkerActiveIndices[i]
+				or (worldMarkIndices[i] - 1)
+			if IsRaidMarkerActive(markerIndex) then
 				worldMarkButtons[i]:SetBackdropBorderColor(markColors[i][1], markColors[i][2], markColors[i][3], 1)
 			else
 				worldMarkButtons[i]:SetBackdropBorderColor(0, 0, 0, 1)

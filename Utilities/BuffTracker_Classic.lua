@@ -522,6 +522,7 @@ local function ShowMover(show)
 			return
 		end
 		buffTrackerFrame:EnableMouse(true)
+		buffTrackerFrame.moverText:SetText(L["Mover"])
 		buffTrackerFrame.moverText:Show()
 		Cell.StylizeFrame(buffTrackerFrame, { 0, 1, 0, 0.4 }, { 0, 0, 0, 0 })
 		fakeIconsFrame:Show()

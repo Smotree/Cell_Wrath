@@ -39,6 +39,7 @@ local function ShowMover(show)
 			return
 		end
 		buttonsFrame:EnableMouse(true)
+		buttonsFrame.moverText:SetText(L["Mover"])
 		buttonsFrame.moverText:Show()
 		Cell.StylizeFrame(buttonsFrame, { 0, 1, 0, 0.4 }, { 0, 0, 0, 0 })
 		if not F.HasPermission() then -- button not shown
