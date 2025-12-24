@@ -13,6 +13,7 @@ local UnitIsUnit = UnitIsUnit
 local UnitIsEnemy = UnitIsEnemy
 local UnitCastingInfo = UnitCastingInfo
 local UnitChannelInfo = UnitChannelInfo
+local GetSpellInfo = GetSpellInfo
 
 local casts = {}
 local castsOnUnit, sortedCastsOnUnit = {}, {}
@@ -20,11 +21,36 @@ local recheck = {}
 local maxIcons, showAllSpells
 local eventFrame = CreateFrame("Frame")
 
+-- WotLK: Build spell name to ID mapping for targetedSpellsList lookup
+local spellNameToId = {}
+
+local function BuildSpellNameMapping()
+    wipe(spellNameToId)
+    if Cell.vars.targetedSpellsList then
+        for spellId in pairs(Cell.vars.targetedSpellsList) do
+            local name = GetSpellInfo(spellId)
+            if name then
+                spellNameToId[name] = spellId
+            end
+        end
+    end
+end
+
+-- Hook to rebuild mapping when list changes
+local originalTargetedSpellsList
+local function CheckAndRebuildMapping()
+    if Cell.vars.targetedSpellsList ~= originalTargetedSpellsList then
+        originalTargetedSpellsList = Cell.vars.targetedSpellsList
+        BuildSpellNameMapping()
+    end
+end
+
 local function Reset()
     wipe(recheck)
     wipe(casts)
     wipe(castsOnUnit)
     wipe(sortedCastsOnUnit)
+    CheckAndRebuildMapping()
 end
 
 -------------------------------------------------
@@ -67,19 +93,31 @@ local function GetCastsOnUnit(guid)
     for sourceGUID, castInfo in pairs(casts) do
         if guid == castInfo["targetGUID"] then
             if castInfo["endTime"] > GetTime() then -- not expired
-                local spellId = castInfo["spellId"]
-                if not castsOnUnit[guid][spellId] then
-                    castsOnUnit[guid][spellId] = {["count"] = 0}
+                local castKey = castInfo["spellId"]
+                local spellName = castInfo["spellName"]
+                if not castsOnUnit[guid][castKey] then
+                    castsOnUnit[guid][castKey] = {["count"] = 0}
                 end
-                if not castsOnUnit[guid][spellId]["endTime"] or castsOnUnit[guid][spellId]["endTime"] > castInfo["endTime"] then --! shorter duration
-                    castsOnUnit[guid][spellId]["startTime"] = castInfo["startTime"]
-                    castsOnUnit[guid][spellId]["endTime"] = castInfo["endTime"]
-                    castsOnUnit[guid][spellId]["icon"] = castInfo["icon"]
+                if not castsOnUnit[guid][castKey]["endTime"] or castsOnUnit[guid][castKey]["endTime"] > castInfo["endTime"] then --! shorter duration
+                    castsOnUnit[guid][castKey]["startTime"] = castInfo["startTime"]
+                    castsOnUnit[guid][castKey]["endTime"] = castInfo["endTime"]
+                    castsOnUnit[guid][castKey]["icon"] = castInfo["icon"]
                 end
-                castsOnUnit[guid][spellId]["count"] = castsOnUnit[guid][spellId]["count"] + 1
+                castsOnUnit[guid][castKey]["count"] = castsOnUnit[guid][castKey]["count"] + 1
 
-                if Cell.vars.targetedSpellsList[spellId] then
-                    castsOnUnit[guid][spellId]["inList"] = true
+                -- WotLK: Check by spellId (if numeric) or by spell name mapping
+                local isInList = false
+                if type(castKey) == "number" then
+                    isInList = Cell.vars.targetedSpellsList[castKey]
+                elseif spellName then
+                    local mappedId = spellNameToId[spellName]
+                    if mappedId then
+                        isInList = Cell.vars.targetedSpellsList[mappedId]
+                    end
+                end
+                
+                if isInList then
+                    castsOnUnit[guid][castKey]["inList"] = true
                     inListFound = true
                 end
             else
@@ -155,29 +193,42 @@ local function CheckUnitCast(sourceUnit, isRecheck)
         end
     end
 
-    -- name, text, texture, startTimeMS, endTimeMS, isTradeSkill, castID, notInterruptible, spellId
-    local name, _, texture, startTimeMS, endTimeMS, _, _, notInterruptible, spellId = UnitCastingInfo(sourceUnit)
+    -- WotLK: UnitCastingInfo returns: name, subText, text, texture, startTime, endTime, isTradeSkill, castID, notInterruptible
+    -- No spellId returned, so we need to look it up from spell name
+    local name, _, texture, startTimeMS, endTimeMS, _, _, notInterruptible = UnitCastingInfo(sourceUnit)
     if not name then
-        -- name, text, texture, startTimeMS, endTimeMS, isTradeSkill, notInterruptible, spellId
-        name, _, texture, startTimeMS, endTimeMS, _, notInterruptible, spellId = UnitChannelInfo(sourceUnit)
+        -- UnitChannelInfo: name, subText, text, texture, startTime, endTime, isTradeSkill, notInterruptible
+        name, _, texture, startTimeMS, endTimeMS, _, notInterruptible = UnitChannelInfo(sourceUnit)
         isChanneling = true
+    end
+
+    -- WotLK: Get spellId from spell name using our mapping
+    local spellId
+    if name then
+        CheckAndRebuildMapping()
+        spellId = spellNameToId[name]
     end
 
     -- print(sourceUnit, name, spellId)
 
-    if spellId and (Cell.vars.targetedSpellsList[spellId] or showAllSpells) then
+    if name and (spellId or showAllSpells) then
+        -- Use spell name as key if no spellId available (for showAllSpells mode)
+        local castKey = spellId or name
+        
         if casts[sourceGUID] then
             casts[sourceGUID]["startTime"] = startTimeMS/1000
             casts[sourceGUID]["endTime"] = endTimeMS/1000
-            casts[sourceGUID]["spellId"] = spellId
+            casts[sourceGUID]["spellId"] = castKey
             casts[sourceGUID]["icon"] = texture
+            casts[sourceGUID]["spellName"] = name
         else
             casts[sourceGUID] = {
                 ["startTime"] = startTimeMS/1000,
                 ["endTime"] = endTimeMS/1000,
-                ["spellId"] = spellId,
+                ["spellId"] = castKey,
                 ["icon"] = texture,
                 ["isChanneling"] = isChanneling,
+                ["spellName"] = name,
                 -- ["targetGUID"] = targetGUID,
                 -- ["sourceUnit"] = sourceUnit,
                 -- ["targetUnit"] = targetUnit,
@@ -390,6 +441,9 @@ end
 
 function I.EnableTargetedSpells(enabled)
     if enabled then
+        -- WotLK: Build spell name mapping on enable
+        BuildSpellNameMapping()
+        
         F.IterateAllUnitButtons(function(b)
             b.indicators.targetedSpells:Show()
         end, true)
@@ -436,4 +490,9 @@ end
 
 function I.UpdateTargetedSpellsNum(num)
     maxIcons = num
+end
+
+-- WotLK: Rebuild spell name mapping when list changes
+function I.UpdateTargetedSpellsMapping()
+    BuildSpellNameMapping()
 end

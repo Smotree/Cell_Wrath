@@ -1866,6 +1866,8 @@ local function ShowIndicatorSettings(id)
             w:SetFunc(function(value)
                 CellDB["targetedSpellsList"] = value
                 Cell.vars.targetedSpellsList = F.ConvertTable(CellDB["targetedSpellsList"])
+                -- WotLK: Rebuild spell name mapping
+                I.UpdateTargetedSpellsMapping()
             end)
 
         -- targetedSpellsGlow
