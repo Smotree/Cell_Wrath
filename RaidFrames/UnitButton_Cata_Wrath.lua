@@ -4569,5 +4569,11 @@ function CellUnitButton_OnLoad(button)
 	button:HookScript("OnLeave", UnitButton_OnLeave) -- SecureHandlerEnterLeaveTemplate
 	button:SetScript("OnUpdate", UnitButton_OnUpdate)
 	button:SetScript("OnEvent", UnitButton_OnEvent)
-	button:RegisterForClicks("AnyDown")
+	-- WotLK: Register clicks based on ActionButtonUseKeyDown CVar to prevent issues
+	local useKeyDown = GetCVarBool("ActionButtonUseKeyDown")
+	if useKeyDown then
+		button:RegisterForClicks("AnyDown")
+	else
+		button:RegisterForClicks("AnyUp")
+	end
 end

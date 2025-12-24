@@ -561,13 +561,24 @@ local function CreateBuffButton(parent, size, spell1, spell2, icon, index)
 	b:SetBackdrop({ edgeFile = Cell.vars.whiteTexture, edgeSize = P.Scale(1) })
 	b:SetBackdropBorderColor(0, 0, 0, 1)
 
-	b:RegisterForClicks("LeftButtonUp", "RightButtonUp", "LeftButtonDown", "RightButtonDown") -- NOTE: ActionButtonUseKeyDown will affect this
-	b:SetAttribute("type1", "spell")
-	b:SetAttribute("spell1", spell1)
-	b:SetAttribute("type2", "spell")
-	b:SetAttribute("spell2", spell2)
+	-- WotLK: Use only Up or Down based on ActionButtonUseKeyDown CVar to prevent double cast
+	local useKeyDown = GetCVarBool("ActionButtonUseKeyDown")
+	if useKeyDown then
+		b:RegisterForClicks("LeftButtonDown", "RightButtonDown")
+	else
+		b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	end
+
+	-- Use macro instead of spell to prevent double casting
+	b:SetAttribute("type1", "macro")
+	b:SetAttribute("macrotext1", "/cast " .. spell1)
+	if spell2 then
+		b:SetAttribute("type2", "macro")
+		b:SetAttribute("macrotext2", "/cast " .. spell2)
+	end
+
 	b:HookScript("OnClick", function(self, button, down)
-		if button == "LeftButton" and IsShiftKeyDown() and not down then
+		if button == "LeftButton" and IsShiftKeyDown() then
 			local msg = F.GetUnaffectedString(index)
 			if msg then
 				UpdateSendChannel()
